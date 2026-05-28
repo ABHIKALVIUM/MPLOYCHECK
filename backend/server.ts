@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
+import cors from 'cors';
 
 // ── MOCK DATABASE — In-Memory Store ──
 interface UserInDb {
@@ -73,6 +73,8 @@ addAudit('SYSTEM_START', 'system');
 
 async function startServer() {
   const app = express();
+  
+  app.use(cors());
   app.use(express.json());
 
   // ── AUTHENTICATION middleware mock helper ──
@@ -81,6 +83,7 @@ async function startServer() {
     if (!authHeader) return null;
     try {
       const b64 = authHeader.split(' ')[1];
+      if (!b64) return null; // Added strict type check here
       const payload = JSON.parse(Buffer.from(b64, 'base64').toString('ascii'));
       return payload as { id: string; userId: string; role: 'admin' | 'general' };
     } catch {
@@ -91,7 +94,8 @@ async function startServer() {
   const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const ctx = getContext(req);
     if (!ctx) {
-      return res.status(401).json({ success: false, error: 'Authorization header missing or invalid session.' });
+      res.status(401).json({ success: false, error: 'Authorization header missing or invalid session.' });
+      return;
     }
     (req as any).user = ctx;
     next();
@@ -100,7 +104,8 @@ async function startServer() {
   const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const ctx = getContext(req);
     if (!ctx || ctx.role !== 'admin') {
-      return res.status(403).json({ success: false, error: 'Access forbidden. Administrator clearance required.' });
+      res.status(403).json({ success: false, error: 'Access forbidden. Administrator clearance required.' });
+      return;
     }
     (req as any).user = ctx;
     next();
@@ -112,21 +117,24 @@ async function startServer() {
   app.post('/api/auth/login', (req, res) => {
     const { userId, password } = req.body;
     if (!userId || !password) {
-      return res.status(400).json({ success: false, error: 'User ID and Password are required.' });
+      res.status(400).json({ success: false, error: 'User ID and Password are required.' });
+      return;
     }
 
     const user = DB.users.find(u => u.userId.toLowerCase() === userId.toLowerCase().trim());
     if (!user) {
-      return res.status(401).json({ success: false, error: 'Database verification failed. Invalid user ID.' });
+      res.status(401).json({ success: false, error: 'Database verification failed. Invalid user ID.' });
+      return;
     }
     if (user.passwordHash !== password) {
-      return res.status(401).json({ success: false, error: 'Authentication failed. Incorrect password credentials.' });
+      res.status(401).json({ success: false, error: 'Authentication failed. Incorrect password credentials.' });
+      return;
     }
     if (!user.isActive) {
-      return res.status(403).json({ success: false, error: 'Account deactivated. Contact system administrator.' });
+      res.status(403).json({ success: false, error: 'Account deactivated. Contact system administrator.' });
+      return;
     }
 
-    // Generate a simple base-64 claims token simulation
     const claims = { id: user.id, userId: user.userId, role: user.role, exp: Date.now() + 8*60*60*1000 };
     const token = Buffer.from(JSON.stringify(claims)).toString('base64');
 
@@ -143,16 +151,14 @@ async function startServer() {
     });
   });
 
-  // 2. Fetch Employment Records (Admin gets all, general gets only their permitted records)
+  // 2. Fetch Employment Records
   app.get('/api/records', requireAuth, (req, res) => {
     const userContext = (req as any).user;
     
-    // In-Memory Filtration
     let recordsList: EmploymentRecordInDb[] = [];
     if (userContext.role === 'admin') {
       recordsList = [...DB.records];
     } else {
-      // General user sees only their records. Under accessLevel restrictions, mask values
       recordsList = DB.records
         .filter(r => r.ownerId === userContext.userId)
         .map(r => {
@@ -187,12 +193,14 @@ async function startServer() {
     const { userId, password, name, email, role, department } = req.body;
     
     if (!userId || !password || !name || !email || !department) {
-      return res.status(400).json({ success: false, error: 'All core parameters (User ID, password, name, email, department) are required.' });
+      res.status(400).json({ success: false, error: 'All core parameters (User ID, password, name, email, department) are required.' });
+      return;
     }
 
     const checkExists = DB.users.some(u => u.userId.toLowerCase() === userId.toLowerCase().trim());
     if (checkExists) {
-      return res.status(409).json({ success: false, error: 'Pre-existing User ID is already occupied in the system.' });
+      res.status(409).json({ success: false, error: 'Pre-existing User ID is already occupied in the system.' });
+      return;
     }
 
     const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -229,7 +237,8 @@ async function startServer() {
 
     const userIdx = DB.users.findIndex(u => u.userId.toLowerCase() === targetUserId.toLowerCase());
     if (userIdx === -1) {
-      return res.status(404).json({ success: false, error: 'Target staff user ID not found.' });
+      res.status(404).json({ success: false, error: 'Target staff user ID not found.' });
+      return;
     }
 
     const original = DB.users[userIdx];
@@ -258,12 +267,14 @@ async function startServer() {
     const sessionOwner = (req as any).user.userId;
 
     if (sessionOwner.toLowerCase() === targetUserId.toLowerCase()) {
-      return res.status(400).json({ success: false, error: 'Deactivation security: Cannot delete your active administrator session.' });
+      res.status(400).json({ success: false, error: 'Deactivation security: Cannot delete your active administrator session.' });
+      return;
     }
 
     const userIdx = DB.users.findIndex(u => u.userId.toLowerCase() === targetUserId.toLowerCase());
     if (userIdx === -1) {
-      return res.status(404).json({ success: false, error: 'Target user not found.' });
+      res.status(404).json({ success: false, error: 'Target user not found.' });
+      return;
     }
 
     DB.users.splice(userIdx, 1);
@@ -277,7 +288,6 @@ async function startServer() {
 
   // 7. Admin: Get Audit Trail Logs
   app.get('/api/audit-logs', requireAdmin, (req, res) => {
-    // Return logs in reverse chronological order
     const orderedLogs = [...DB.auditLogs].reverse();
     res.json({
       success: true,
@@ -285,20 +295,17 @@ async function startServer() {
     });
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa'
+  // Fallback Catch-all Route (Fixed for Express 5 compatibility)
+  const distPath = path.join(process.cwd(), 'dist');
+  app.use(express.static(distPath));
+  
+  app.use((req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+      if (err) {
+        res.status(200).send('API Server is running cleanly. Ready for Angular frontend requests!');
+      }
     });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+  });
 
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   app.listen(PORT, '0.0.0.0', () => {
