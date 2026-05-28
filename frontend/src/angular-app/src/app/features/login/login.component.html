@@ -1,0 +1,83 @@
+<div class="view active" style="min-height: 100vh; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; position: relative; overflow: hidden;">
+  <div class="login-bg"></div>
+  <div class="grid-lines"></div>
+  <div class="login-shell">
+    <div class="login-brand">
+      <span class="brand-hex">⬡</span>
+      <h1>Mploy<em>Chek</em></h1>
+      <p class="login-tagline">Secure · Transparent · Blockchain-Verified Employment</p>
+    </div>
+    <div class="login-card">
+      <h2 class="card-title">Welcome Back</h2>
+      <p class="card-sub">Sign in to your account to continue</p>
+
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+        <div class="field">
+          <label for="login-userid">User ID</label>
+          <div class="input-wrap">
+            <span class="input-icon">👤</span>
+            <input 
+              type="text" 
+              id="login-userid" 
+              formControlName="userId"
+              placeholder="Enter your user ID" 
+              autocomplete="username" 
+              [class.err]="submitted && f.userId.errors"
+            />
+          </div>
+          <div class="field-err" [class.show]="submitted && f.userId.errors">
+            User ID is required (min 3 chars)
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="login-password">Password</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input 
+              [type]="showPassword ? 'text' : 'password'" 
+              id="login-password" 
+              formControlName="password"
+              placeholder="Enter your password" 
+              autocomplete="current-password" 
+              [class.err]="submitted && f.password.errors"
+            />
+            <button class="toggle-pw" type="button" (click)="togglePassword()">
+              {{ showPassword ? '🙈' : '👁' }}
+            </button>
+          </div>
+          <div class="field-err" [class.show]="submitted && f.password.errors">
+            Password is required (min 6 chars)
+          </div>
+        </div>
+
+        <div class="error-banner" [class.show]="error">
+          ⚠ {{ error }}
+        </div>
+
+        <button class="btn-primary" type="submit" [disabled]="loading">
+          <span *ngIf="loading" class="spinner"></span>
+          {{ loading ? 'Authenticating…' : 'Sign In →' }}
+        </button>
+      </form>
+
+      <div class="demo-section">
+        <p class="demo-label">Demo Accounts — Click to fill</p>
+        <div class="demo-chips">
+          <button class="demo-chip" (click)="fillDemo('admin', 'Admin@123')">
+            <span class="chip-role admin">Admin</span> admin
+          </button>
+          <button class="demo-chip" (click)="fillDemo('alice', 'User@123')">
+            <span class="chip-role">General</span> alice
+          </button>
+          <button class="demo-chip" (click)="fillDemo('bob', 'User@123')">
+            <span class="chip-role">General</span> bob
+          </button>
+        </div>
+      </div>
+    </div>
+    <p style="text-align:center;margin-top:20px;font-size:12px;color:var(--text3);font-family:var(--mono)">
+      Powered by Blockchain + AI · MployChek © 2026
+    </p>
+  </div>
+</div>

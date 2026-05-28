@@ -1,0 +1,30 @@
+<div class="progress-bar" id="progress-bar"></div>
+
+<ng-container *ngIf="currentUser$ | async as user">
+  <nav class="topnav" style="display: flex;">
+    <div class="nav-brand">
+      <span class="icon"></span>
+      <span class="wordmark">MPLOYCHEK<em>.</em></span>
+    </div>
+
+    <div class="nav-links">
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+      <a *ngIf="$any(user).role === 'admin'"
+         routerLink="/admin" routerLinkActive="active">Admin Console</a>
+    </div>
+
+    <div class="nav-right">
+      <div class="nav-avatar">{{ $any(user).avatarInitials }}</div>
+      <div class="nav-info">
+        <div class="n-name">{{ $any(user).name }}</div>
+        <div class="n-role">{{ $any(user).department }}</div>
+      </div>
+      <span class="role-badge" [class.admin]="$any(user).role === 'admin'">
+        {{ $any(user).role === 'admin' ? 'Admin' : 'General' }}
+      </span>
+      <button class="btn-logout" (click)="onLogout()">Sign Out</button>
+    </div>
+  </nav>
+</ng-container>
+
+<router-outlet></router-outlet>

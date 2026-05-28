@@ -1,0 +1,194 @@
+<div id="dashboard-view" class="view active" style="padding-top: 64px; flex-direction: column;">
+  <div class="dash-body">
+    <div class="top-row">
+      <!-- Profile Card -->
+      <div class="profile-card" id="profile-card">
+        <div *ngIf="user" style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="profile-avatar-lg">{{ user.avatarInitials }}</div>
+          <div>
+            <div class="profile-name">{{ user.name }}</div>
+            <div class="profile-dept">{{ user.department }}</div>
+            <div class="profile-email">✉ {{ user.email }}</div>
+            <div class="profile-badges" style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <span class="badge" [class.admin-badge]="user.role === 'admin'" [class.public]="user.role !== 'admin'">
+                {{ user.role === 'admin' ? '⚡ Admin' : '👤 General User' }}
+              </span>
+              <span class="badge" [class.active-badge]="user.isActive" [class.inactive-badge]="!user.isActive">
+                <span class="status-dot" [class.inactivedisabled]="!user.isActive"></span>
+                {{ user.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </div>
+            <div class="profile-wallet" style="margin-top: 12px;" *ngIf="user.blockchainWalletAddress">
+              <span class="wallet-icon">⬡</span>
+              <code>{{ user.blockchainWalletAddress | slice:0:22 }}…</code>
+            </div>
+            <div class="profile-joined" style="margin-top: 8px;">Joined {{ user.joinedAt | fmtDate }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Statistics -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-num">{{ stats.total }}</span>
+          <span class="stat-lbl">Total Records</span>
+        </div>
+        <div class="stat-card verified">
+          <span class="stat-num">{{ stats.verified }}</span>
+          <span class="stat-lbl">Verified</span>
+        </div>
+        <div class="stat-card pending">
+          <span class="stat-num">{{ stats.pending }}</span>
+          <span class="stat-lbl">Pending</span>
+        </div>
+        <div class="stat-card current">
+          <span class="stat-num">{{ stats.current }}</span>
+          <span class="stat-lbl">Current Roles</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Employment Records Workspace -->
+    <div class="records-section">
+      <div class="records-header">
+        <div class="records-title">
+          <h3>Employment Records</h3>
+          <p>{{ user?.role === 'admin' ? "Admin View — All Users' Records" : "Your verified employment history" }}</p>
+        </div>
+        
+        <!-- Delay Control Panel -->
+        <div class="delay-ctrl">
+          <label>Simulate API Delay</label>
+          <div class="delay-btns">
+            <button 
+              *ngFor="let option of delayOptions" 
+              class="delay-btn" 
+              [class.active]="currentDelay === option.value"
+              (click)="selectDelay(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <div class="load-time" *ngIf="loadTimeMessage">
+            {{ loadTimeMessage }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Search, Filtering, and Refresh Actions -->
+      <div class="table-controls">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="Search company or role..." 
+            [(ngModel)]="searchTerm"
+            (ngModelChange)="onFilterParamsChange()"
+          />
+        </div>
+        <div class="filter-tabs">
+          <button 
+            *ngFor="let filter of filterOptions"
+            class="filter-tab" 
+            [class.active]="activeFilter === filter.value"
+            (click)="selectFilter(filter.value)"
+          >
+            {{ filter.label }}
+          </button>
+        </div>
+        <button class="refresh-btn" (click)="refreshRecords()" title="Refresh records list">↻</button>
+      </div>
+
+      <!-- Reactive Table resolved via Async Pipe -->
+      <ng-container *ngIf="records$ | async as records; else loadingTemplate">
+        <div class="table-wrap" *ngIf="records.length > 0; else emptyStateTemplate">
+          <table>
+            <thead>
+              <tr>
+                <th *ngIf="user?.role === 'admin'" (click)="toggleSort('ownerId')">
+                  Employee {{ getSortIndicator('ownerId') }}
+                </th>
+                <th (click)="toggleSort('company')">
+                  Company {{ getSortIndicator('company') }}
+                </th>
+                <th (click)="toggleSort('position')">
+                  Role {{ getSortIndicator('position') }}
+                </th>
+                <th (click)="toggleSort('startDate')">
+                  Period {{ getSortIndicator('startDate') }}
+                </th>
+                <th>Salary</th>
+                <th>Status</th>
+                <th>Access</th>
+                <th>Skills</th>
+                <th>Blockchain Hash</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of records">
+                <td *ngIf="user?.role === 'admin'">
+                  <span class="owner-chip">{{ r.ownerId }}</span>
+                </td>
+                <td><strong>{{ r.company }}</strong></td>
+                <td>{{ r.position }}</td>
+                <td class="period-cell">
+                  {{ r.startDate | fmtMonthYear }} 
+                  <span class="period-sep">→</span>
+                  <span [class.current-label]="!r.endDate">
+                    {{ r.endDate | fmtMonthYear }}
+                  </span>
+                </td>
+                <td>{{ r.salary }}</td>
+                <td>
+                  <span class="badge" [ngClass]="r.verificationStatus">
+                    {{ r.verificationStatus | cap }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge" [ngClass]="r.accessLevel">
+                    {{ r.accessLevel | cap }}
+                  </span>
+                </td>
+                <td>
+                  <div class="skills-wrap">
+                    <span *ngFor="let skill of r.skills | slice:0:3" class="skill-tag">
+                      {{ skill }}
+                    </span>
+                    <span *ngIf="r.skills.length > 3" class="skill-more">
+                      +{{ r.skills.length - 3 }}
+                    </span>
+                  </div>
+                </td>
+                <td class="hash-cell">
+                  <code>{{ r.blockchainHash | slice:0:14 }}…</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-container>
+
+      <!-- Skeleton Loading Template -->
+      <ng-template #loadingTemplate>
+        <div class="skeleton">
+          <div *ngFor="let key of [1, 2, 3, 4]" class="sk-row">
+            <div class="sk sk-cell w30"></div>
+            <div class="sk sk-cell w20"></div>
+            <div class="sk sk-cell w15"></div>
+            <div class="sk sk-cell w15"></div>
+            <div class="sk sk-cell w10"></div>
+          </div>
+        </div>
+      </ng-template>
+
+      <!-- Empty Searching Template -->
+      <ng-template #emptyStateTemplate>
+        <div class="empty-state">
+          <span class="big-icon">🔎</span>
+          No records match your search or filter requirements.
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</div>

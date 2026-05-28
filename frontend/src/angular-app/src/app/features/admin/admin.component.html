@@ -1,0 +1,195 @@
+<div id="admin-view" class="view active" style="padding-top: 64px; flex-direction: column;">
+  <div class="admin-body">
+    <div class="page-header">
+      <div>
+        <h2>⚡ Admin Console</h2>
+        <p>Manage users, permissions and audit activity</p>
+      </div>
+      <button class="btn-new" (click)="openCreateModal()">+ New User</button>
+    </div>
+
+    <!-- Switchable tab bar -->
+    <div class="tab-bar">
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab === 'users'"
+        (click)="setTab('users')"
+      >
+        👥 Users ({{ userCount }})
+      </button>
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab === 'audit'"
+        (click)="setTab('audit')"
+      >
+        📋 Audit Log ({{ auditCount }})
+      </button>
+    </div>
+
+    <!-- Main dynamic viewport -->
+    <div class="admin-section">
+      <!-- Users grid tab view -->
+      <div *ngIf="activeTab === 'users'">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Name / ID</th>
+              <th>Email</th>
+              <th>Department</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Wallet</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let u of users" [class.inactive-row]="!u.isActive">
+              <td>
+                <div class="nav-avatar" style="width: 36px; height: 36px;">
+                  {{ u.avatarInitials }}
+                </div>
+              </td>
+              <td>
+                <strong>{{ u.name }}</strong>
+                <span class="uid-tag">{{ u.userId }}</span>
+              </td>
+              <td style="font-size: 13px; color: var(--text3);">{{ u.email }}</td>
+              <td>{{ u.department }}</td>
+              <td>
+                <span class="badge" [class.admin-badge]="u.role === 'admin'" [class.public]="u.role !== 'admin'">
+                  {{ u.role | cap }}
+                </span>
+              </td>
+              <td>
+                <label class="toggle-wrap">
+                  <span class="toggle">
+                    <input 
+                      type="checkbox" 
+                      [checked]="u.isActive" 
+                      (change)="toggleUserActive(u.userId, $any($event.target).checked)"
+                    />
+                    <span class="slider"></span>
+                  </span>
+                </label>
+              </td>
+              <td>
+                <code class="hash-mini" *ngIf="u.blockchainWalletAddress">
+                  {{ u.blockchainWalletAddress | slice:0:14 }}…
+                </code>
+              </td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn-icon edit" (click)="openEditModal(u)" title="Edit User">✏️</button>
+                  <button class="btn-icon delete" (click)="deleteUser(u.userId)" title="Delete User">🗑</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Audit trails tab view -->
+      <div *ngIf="activeTab === 'audit'">
+        <table *ngIf="auditLogs.length > 0; else emptyAuditTemplate">
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Performed By</th>
+              <th>Target</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let log of auditLogs">
+              <td>
+                <span class="audit-action">
+                  {{ getActionLabel(log.action) }}
+                </span>
+              </td>
+              <td><code>{{ log.performedBy }}</code></td>
+              <td><code>{{ log.targetUserId || '—' }}</code></td>
+              <td style="font-size: 13px; color: var(--text3);">
+                {{ log.timestamp | fmtDate }} 
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #emptyAuditTemplate>
+          <div class="empty-state">
+            <span class="big-icon">📋</span>
+            No audit entries logged yet.
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit User Dialog Modal -->
+<div class="modal-overlay" [class.show]="showModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>{{ editMode ? '✏️ Edit User' : '+ Create User' }}</h3>
+      <button class="modal-close" (click)="closeModal()">✕</button>
+    </div>
+
+    <!-- Modal Notifications -->
+    <div class="error-banner" [class.show]="modalError">
+      ⚠ {{ modalError }}
+    </div>
+    <div class="success-banner" [class.show]="modalSuccess">
+      ✅ {{ modalSuccess }}
+    </div>
+
+    <form [formGroup]="userForm" (ngSubmit)="submitForm()">
+      <div class="form-grid">
+        <!-- User ID (Create only) -->
+        <div class="modal-field field" *ngIf="!editMode">
+          <label for="f-uid">User ID</label>
+          <input id="f-uid" formControlName="userId" placeholder="e.g. john_doe" />
+        </div>
+
+        <!-- Password (Create only) -->
+        <div class="modal-field field" *ngIf="!editMode">
+          <label for="f-pwd">Password</label>
+          <input id="f-pwd" type="password" formControlName="password" placeholder="Min 6 characters" />
+        </div>
+
+        <!-- Full Name -->
+        <div class="modal-field field" [class.full]="editMode">
+          <label for="f-name">Full Name</label>
+          <input id="f-name" formControlName="name" placeholder="Full name" />
+        </div>
+
+        <!-- Email -->
+        <div class="modal-field field">
+          <label for="f-email">Email Address</label>
+          <input id="f-email" type="email" formControlName="email" placeholder="user@company.com" />
+        </div>
+
+        <!-- Role -->
+        <div class="modal-field field">
+          <label for="f-role">System Role</label>
+          <select id="f-role" formControlName="role">
+            <option value="general">General User</option>
+            <option value="admin">System Admin</option>
+          </select>
+        </div>
+
+        <!-- Department -->
+        <div class="modal-field field">
+          <label for="f-dept">Department</label>
+          <input id="f-dept" formControlName="department" placeholder="e.g. Engineering" />
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button type="submit" class="btn-modal-primary" [disabled]="userForm.invalid">
+          {{ editMode ? 'Save Changes' : 'Create User' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
